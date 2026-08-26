@@ -1,0 +1,1 @@
+Basar frontend — Next.js 14 App Router with `@supabase/ssr`, shadcn/ui, Tailwind. See the repository root [README](../README.md).
