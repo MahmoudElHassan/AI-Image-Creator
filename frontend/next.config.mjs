@@ -1,16 +1,24 @@
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
-const remotePatterns = [];
-
-if (supabaseUrl) {
-  const { protocol, hostname, port } = new URL(supabaseUrl);
-
-  remotePatterns.push({
-    protocol: protocol.replace(':', ''),
-    hostname,
-    port,
-    pathname: '/storage/v1/object/public/**',
-  });
+function supabaseImagePattern(raw) {
+  if (!raw || /[<>]/.test(raw) || raw.includes('project-ref') || raw.includes('your-project')) {
+    return null
+  }
+  try {
+    const parsed = new URL(raw)
+    if (!parsed.hostname) return null
+    return {
+      protocol: parsed.protocol.replace(':', ''),
+      hostname: parsed.hostname,
+      port: parsed.port,
+      pathname: '/storage/v1/object/public/**',
+    }
+  } catch {
+    return null
+  }
 }
+
+const remotePatterns = []
+const supabasePattern = supabaseImagePattern(process.env.NEXT_PUBLIC_SUPABASE_URL)
+if (supabasePattern) remotePatterns.push(supabasePattern)
 
 const csp = [
   "default-src 'self'",

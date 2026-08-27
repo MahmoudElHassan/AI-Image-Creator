@@ -146,6 +146,27 @@ Bunny Magic handles HTTPS termination. The container serves HTTP only.
 
 The image is built with `NEXT_PUBLIC_SIGNUPS_ENABLED=false`. `/signup` shows the closed-state card. Also disable new user signups in the Supabase Dashboard (Authentication → Providers → Email) so the frontend flag is not the only gate.
 
+## Render
+
+Render translates every dashboard env var into a Docker `ARG` during the image build. `NEXT_PUBLIC_*` values are baked into the Next.js bundle at that moment.
+
+1. Connect the GitHub repo as a **Docker** web service. Port comes from `EXPOSE 3000` (or Render's `PORT`, as long as it is not `8000`).
+2. Set environment variables to **real** Supabase credentials from Settings → API. Never paste `https://<project-ref>.supabase.co` — the angle brackets are not a valid URL and fail the frontend build.
+3. Required:
+
+   | Variable | When | Value |
+   |----------|------|--------|
+   | `NEXT_PUBLIC_SUPABASE_URL` | build + runtime | `https://abcdxyz.supabase.co` (your real project URL, no brackets) |
+   | `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` | build + runtime | publishable key |
+   | `NEXT_PUBLIC_SIGNUPS_ENABLED` | build | `false` |
+   | `SUPABASE_URL` | runtime | same project URL |
+   | `SUPABASE_SECRET_KEY` | runtime | secret key |
+   | `CORS_ORIGINS` | runtime | `https://your-service.onrender.com` |
+   | `ADMIN_EMAILS` | runtime | your operator email |
+
+4. Redeploy after changing `NEXT_PUBLIC_*` (a runtime-only edit is not enough).
+5. Repo `render.yaml` lists these keys; fill the `sync: false` ones in the dashboard.
+
 ## Troubleshooting
 
 ### Missing Environment Variables

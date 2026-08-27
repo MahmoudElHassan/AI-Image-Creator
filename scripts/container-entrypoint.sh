@@ -34,7 +34,14 @@ fi
 # Bind backend to loopback so it is not reachable even if a second port is published.
 BACKEND_HOST="${BACKEND_HOST:-127.0.0.1}"
 BACKEND_PORT="${BACKEND_PORT:-8000}"
-FRONTEND_PORT="${FRONTEND_PORT:-3000}"
+# Render injects PORT for inbound HTTP. Ignore PORT=8000 from backend/.env.example.
+if [ -n "${FRONTEND_PORT:-}" ]; then
+  :
+elif [ -n "${PORT:-}" ] && [ "$PORT" != "8000" ]; then
+  FRONTEND_PORT="$PORT"
+else
+  FRONTEND_PORT=3000
+fi
 export NEXT_SERVER_API_URL="${NEXT_SERVER_API_URL:-http://127.0.0.1:${BACKEND_PORT}}"
 export BACKEND_INTERNAL_URL="${BACKEND_INTERNAL_URL:-http://127.0.0.1:${BACKEND_PORT}}"
 
