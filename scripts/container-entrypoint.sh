@@ -33,15 +33,16 @@ fi
 
 # Bind backend to loopback so it is not reachable even if a second port is published.
 BACKEND_HOST="${BACKEND_HOST:-127.0.0.1}"
+# Render (and similar hosts) inject PORT for inbound HTTP. Next.js must bind that
+# port — including when PORT=8000 — or the platform port scan times out.
+FRONTEND_PORT="${FRONTEND_PORT:-${PORT:-3000}}"
 BACKEND_PORT="${BACKEND_PORT:-8000}"
-# Render injects PORT for inbound HTTP. Ignore PORT=8000 from backend/.env.example.
-if [ -n "${FRONTEND_PORT:-}" ]; then
-  :
-elif [ -n "${PORT:-}" ] && [ "$PORT" != "8000" ]; then
-  FRONTEND_PORT="$PORT"
-else
-  FRONTEND_PORT=3000
+if [ "$BACKEND_PORT" = "$FRONTEND_PORT" ]; then
+  BACKEND_PORT=8001
+  echo "BACKEND_PORT collided with FRONTEND_PORT=${FRONTEND_PORT}; using ${BACKEND_PORT} for FastAPI."
+  echo "NOTE: next.config /api rewrite still targets :8000. Prefer unsetting dashboard PORT=8000 so Render assigns a non-8000 public port and FastAPI can stay on 8000."
 fi
+export FRONTEND_PORT BACKEND_PORT
 export NEXT_SERVER_API_URL="${NEXT_SERVER_API_URL:-http://127.0.0.1:${BACKEND_PORT}}"
 export BACKEND_INTERNAL_URL="${BACKEND_INTERNAL_URL:-http://127.0.0.1:${BACKEND_PORT}}"
 

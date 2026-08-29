@@ -1,6 +1,10 @@
 # Render Blueprint — https://render.com/docs/blueprint-spec
 # Do not paste example placeholders. Angle brackets make NEXT_PUBLIC_SUPABASE_URL
 # an invalid URL and fail `next build`.
+#
+# PORT: leave unset. Render injects the public HTTP port; the entrypoint binds
+# Next.js to it. Do not set PORT=8000 from backend/.env.example (that is the
+# internal API port). Optional FRONTEND_PORT overrides the public listen port.
 services:
   - type: web
     name: basar

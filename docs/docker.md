@@ -64,6 +64,8 @@ The application is available at `http://localhost:3001`.
 | `NEXT_SERVER_API_URL` | No | `http://127.0.0.1:8000` | Set by the entrypoint. Do not point this at a public URL. |
 | `BACKEND_INTERNAL_URL` | No | `http://127.0.0.1:8000` | Same as above. Server-side fetches to FastAPI. |
 | `BACKEND_HOST` | No | `127.0.0.1` | Loopback-only. Do not set `0.0.0.0` on a public host. |
+| `BACKEND_PORT` | No | `8000` | Internal FastAPI port. If it equals the public `PORT` / `FRONTEND_PORT`, the entrypoint uses `8001`. |
+| `FRONTEND_PORT` | No | `$PORT` or `3000` | Public Next.js listen port. Prefer leaving unset so Render's `PORT` is used. |
 
 **Security**: Never commit runtime secrets to version control. Use environment files or secret management systems.
 
@@ -150,7 +152,7 @@ The image is built with `NEXT_PUBLIC_SIGNUPS_ENABLED=false`. `/signup` shows the
 
 Render translates every dashboard env var into a Docker `ARG` during the image build. `NEXT_PUBLIC_*` values are baked into the Next.js bundle at that moment.
 
-1. Connect the GitHub repo as a **Docker** web service. Port comes from `EXPOSE 3000` (or Render's `PORT`, as long as it is not `8000`).
+1. Connect the GitHub repo as a **Docker** web service. The entrypoint binds Next.js to Render's `PORT` (whatever the platform assigns, often `10000` or `8000`). FastAPI stays on loopback; if `BACKEND_PORT` would collide with that public port, it moves to `8001`.
 2. Set environment variables to **real** Supabase credentials from Settings → API. Never paste `https://<project-ref>.supabase.co` — the angle brackets are not a valid URL and fail the frontend build.
 3. Required:
 
@@ -164,10 +166,19 @@ Render translates every dashboard env var into a Docker `ARG` during the image b
    | `CORS_ORIGINS` | runtime | `https://your-service.onrender.com` |
    | `ADMIN_EMAILS` | runtime | your operator email |
 
-4. Redeploy after changing `NEXT_PUBLIC_*` (a runtime-only edit is not enough).
-5. Repo `render.yaml` lists these keys; fill the `sync: false` ones in the dashboard.
+4. Do **not** set `PORT` in the Render dashboard unless you intend that value as the **frontend** listen port. Never paste `PORT=8000` from `backend/.env.example` — that used to make Render probe 8000 while Next listened on 3000. Leave Render's injected `PORT` alone; the entrypoint honors it for Next.js.
+5. Redeploy after changing `NEXT_PUBLIC_*` (a runtime-only edit is not enough).
+6. Repo `render.yaml` lists these keys; fill the `sync: false` ones in the dashboard.
 
 ## Troubleshooting
+
+### Port scan timeout on Render
+
+**Symptom**: Logs show `Starting frontend on port 3000` then `scan for open port 8000` / `Port scan timeout`.
+
+**Cause**: Next was not bound to the platform `PORT`.
+
+**Solution**: Deploy a build with the current entrypoint (honors `PORT` for Next). Do not override `PORT` to a different port than the one Render expects. Prefer **removing** a pasted `PORT=8000` from the Render env so the platform assigns a public port other than 8000 — then FastAPI stays on `8000` and matches the Next `/api` rewrite. If `PORT` must be `8000`, FastAPI moves to `8001` and browser `/api` rewrites will not reach it.
 
 ### Missing Environment Variables
 
@@ -222,9 +233,9 @@ Render translates every dashboard env var into a Docker `ARG` during the image b
 
 ## Architecture Notes
 
-- **Backend binding**: `127.0.0.1:8000` (loopback only; the entrypoint sets this)
-- **Frontend binding**: `0.0.0.0:3000` (publicly accessible, mapped to host port `3001` by default)
-- **API proxy**: Next.js rewrites `/api/*` to `http://127.0.0.1:8000/*`; server fetches use `BACKEND_INTERNAL_URL` / `NEXT_SERVER_API_URL`
+- **Backend binding**: `127.0.0.1:8000` by default (loopback only); moves to `8001` if that would collide with the public `PORT`
+- **Frontend binding**: `0.0.0.0:$PORT` on Render (or `FRONTEND_PORT` / `3000` locally); host map is `3001:3000` for `make up`
+- **API proxy**: Next.js rewrites `/api/*` to `http://127.0.0.1:8000/:path*` at build time; server fetches use `BACKEND_INTERNAL_URL` / `NEXT_SERVER_API_URL` (updated by the entrypoint when the API port moves)
 - **Process management**: `tini` as PID 1 + bash entrypoint script
 - **Image size**: ~560MB (Python 3.13 slim + Node.js 20)
 - **No secrets in layers**: Only `NEXT_PUBLIC_*` vars are in image (publishable keys)
