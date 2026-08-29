@@ -13,9 +13,11 @@ RUN rm -f .env .env.local .env.production .env.local.example .env.example
 ARG NEXT_PUBLIC_SUPABASE_URL
 ARG NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY
 ARG NEXT_PUBLIC_SIGNUPS_ENABLED=false
+ARG NEXT_PUBLIC_API_URL=/api
 ENV NEXT_PUBLIC_SUPABASE_URL=$NEXT_PUBLIC_SUPABASE_URL
 ENV NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY=$NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY
 ENV NEXT_PUBLIC_SIGNUPS_ENABLED=$NEXT_PUBLIC_SIGNUPS_ENABLED
+ENV NEXT_PUBLIC_API_URL=$NEXT_PUBLIC_API_URL
 
 # Render forwards dashboard env as Docker build args. Example placeholders
 # (`project-ref`, `your-project`, angle brackets) must fail the image build.
@@ -63,9 +65,11 @@ RUN chmod +x /app/scripts/container-entrypoint.sh
 ARG NEXT_PUBLIC_SUPABASE_URL
 ARG NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY
 ARG NEXT_PUBLIC_SIGNUPS_ENABLED=false
+ARG NEXT_PUBLIC_API_URL=/api
 ENV NEXT_PUBLIC_SUPABASE_URL=$NEXT_PUBLIC_SUPABASE_URL
 ENV NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY=$NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY
 ENV NEXT_PUBLIC_SIGNUPS_ENABLED=$NEXT_PUBLIC_SIGNUPS_ENABLED
+ENV NEXT_PUBLIC_API_URL=$NEXT_PUBLIC_API_URL
 
 HEALTHCHECK --interval=30s --timeout=10s --start-period=40s --retries=3 \
   CMD python3 -c "import os,urllib.request,sys;fp=os.environ.get('FRONTEND_PORT') or os.environ.get('PORT') or '3000';bp=os.environ.get('BACKEND_PORT') or '8000';bp=('8001' if bp==fp else bp);r1=urllib.request.urlopen(f'http://127.0.0.1:{bp}/health');r2=urllib.request.urlopen(f'http://127.0.0.1:{fp}');sys.exit(0 if r1.status==200 and r2.status==200 else 1)"

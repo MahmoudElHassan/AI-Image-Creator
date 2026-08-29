@@ -1,5 +1,12 @@
 import { createClient } from './supabase/client'
 
+/** Browser API base. Defaults to `/api` (Next rewrite → FastAPI). */
+export function getPublicApiBase(): string {
+  const raw = process.env.NEXT_PUBLIC_API_URL?.trim()
+  if (!raw || raw === 'undefined') return '/api'
+  return raw.replace(/\/+$/, '')
+}
+
 export class ApiError extends Error {
   code: string
   requestId?: string
@@ -72,7 +79,7 @@ export async function apiRequest<T = unknown>(
     headers.set('Authorization', `Bearer ${session.access_token}`)
   }
 
-  const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}${endpoint}`, {
+  const response = await fetch(`${getPublicApiBase()}${endpoint}`, {
     ...options,
     headers,
   })
