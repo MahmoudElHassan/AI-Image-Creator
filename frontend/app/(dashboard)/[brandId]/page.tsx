@@ -1,36 +1,15 @@
 import { notFound, redirect } from 'next/navigation'
-import { createClient } from '@/lib/supabase/server'
-import { backendUrl } from '@/lib/server-api-url'
+import { loadOwnedBrandFromSession } from '@/lib/brand-data'
 import { GeneratorForm } from '@/components/generation/generator-form'
 import type { Brand } from '@/types'
 
 async function loadBrand(brandId: string): Promise<Brand> {
-  const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) redirect('/login')
-
-  const { data: { session } } = await supabase.auth.getSession()
-  if (!session?.access_token) redirect('/login')
-
-  const apiUrl = backendUrl(`/brands/${brandId}`)
-  const response = await fetch(apiUrl, {
-    headers: { Authorization: `Bearer ${session.access_token}` },
-    cache: 'no-store',
-  })
-  if (response.status === 404) notFound()
-  if (response.status === 401) redirect('/login')
-  if (!response.ok) throw new Error('Failed to load brand')
-
-  const payload: unknown = await response.json()
-  if (
-    !payload ||
-    typeof payload !== 'object' ||
-    typeof (payload as Record<string, unknown>).name !== 'string' ||
-    !('logo_url' in (payload as Record<string, unknown>))
-  ) {
-    throw new Error('Invalid brand payload')
+  const result = await loadOwnedBrandFromSession(brandId)
+  if ('reason' in result) {
+    if (result.reason === 'unauthenticated') redirect('/login')
+    notFound()
   }
-  return payload as Brand
+  return result.brand
 }
 
 export default async function BrandGeneratorPage({

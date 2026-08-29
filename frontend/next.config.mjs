@@ -39,6 +39,11 @@ const nextConfig = {
     remotePatterns,
   },
   async rewrites() {
+    // Vercel is Next.js only — localhost FastAPI is not there. App Router
+    // `/api/*` routes handle brands/kit/me natively and return 503 for the rest.
+    if (process.env.VERCEL) {
+      return []
+    }
     return {
       beforeFiles: [],
       afterFiles: [],
