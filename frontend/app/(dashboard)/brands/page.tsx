@@ -11,7 +11,7 @@ import { Brand } from '@/types'
 
 export default function BrandsPage() {
   const [showCreateModal, setShowCreateModal] = useState(false)
-  const { brands, loading, error, addBrand } = useBrands()
+  const { brands, loading, error, addBrand, refetch } = useBrands()
   const router = useRouter()
 
   const handleBrandCreated = (brand: Brand) => {
@@ -62,6 +62,7 @@ export default function BrandsPage() {
         open={showCreateModal}
         onOpenChange={setShowCreateModal}
         onBrandCreated={handleBrandCreated}
+        onDuplicateName={() => void refetch()}
       />
     </div>
   )

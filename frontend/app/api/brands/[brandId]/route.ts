@@ -28,7 +28,7 @@ export async function GET(request: NextRequest, { params }: RouteContext) {
   const row = await loadOwnedBrandRow(auth.supabase, params.brandId, auth.user.id)
   if (!row) return jsonError(404, 'BRAND_NOT_FOUND', 'Brand not found')
 
-  const statuses = await loadKitStatuses(auth.supabase, [params.brandId])
+  const { statuses } = await loadKitStatuses(auth.supabase, [params.brandId])
   return NextResponse.json(toBrand(row, statuses[params.brandId] ?? 'not_started'))
 }
 
@@ -57,7 +57,7 @@ export async function PATCH(request: NextRequest, { params }: RouteContext) {
     return jsonError(400, 'VALIDATION_ERROR', name.error)
   }
 
-  const statuses = await loadKitStatuses(auth.supabase, [params.brandId])
+  const { statuses } = await loadKitStatuses(auth.supabase, [params.brandId])
   const kitStatus = statuses[params.brandId] ?? 'not_started'
   if (name === existing.name) {
     return NextResponse.json(toBrand(existing, kitStatus))

@@ -8,6 +8,7 @@ import {
 import {
   isDuplicateBrandError,
   loadKitStatuses,
+  mapSupabaseBrandsError,
   toBrand,
   toBrandListItem,
   validateBrandName,
@@ -26,18 +27,32 @@ export async function GET(request: NextRequest) {
   const { data, error } = await auth.supabase
     .from('brands')
     .select('id, name, logo_path, created_at, updated_at')
-    .eq('owner_user_id', auth.user.id)
     .order('created_at', { ascending: false })
 
   if (error) {
-    return jsonError(500, 'UNKNOWN', 'Failed to load brands')
+    const mapped = mapSupabaseBrandsError(error)
+    return jsonError(mapped.status, mapped.code, mapped.message, {
+      operation: 'list_brands',
+      supabaseCode: error.code,
+      supabaseMessage: error.message,
+      userId: auth.user.id,
+    })
   }
 
   const rows = (data ?? []) as BrandRow[]
-  const statuses = await loadKitStatuses(
+  const { statuses, error: kitError } = await loadKitStatuses(
     auth.supabase,
     rows.map((row) => row.id),
   )
+
+  if (kitError) {
+    console.warn('[api/brands] kit status enrichment skipped', {
+      supabaseCode: kitError.code,
+      supabaseMessage: kitError.message,
+      brandCount: rows.length,
+    })
+  }
+
   return NextResponse.json(
     rows.map((row) => toBrandListItem(row, statuses[row.id] ?? 'not_started')),
   )
@@ -75,7 +90,18 @@ export async function POST(request: NextRequest) {
     if (isDuplicateBrandError(error)) {
       return jsonError(409, 'DUPLICATE_BRAND_NAME', 'A brand with this name already exists')
     }
-    return jsonError(500, 'UNKNOWN', 'Failed to create brand')
+    const mapped = error ? mapSupabaseBrandsError(error) : null
+    return jsonError(
+      mapped?.status ?? 500,
+      mapped?.code ?? 'UNKNOWN',
+      mapped?.code === 'UNKNOWN' ? 'Failed to create brand' : mapped!.message,
+      {
+        operation: 'create_brand',
+        supabaseCode: error?.code,
+        supabaseMessage: error?.message,
+        userId: auth.user.id,
+      },
+    )
   }
 
   return NextResponse.json(toBrand(data as BrandRow, 'not_started'), { status: 201 })

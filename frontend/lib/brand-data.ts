@@ -143,20 +143,65 @@ export function validateBrandName(raw: unknown): string | { error: string } {
   return name
 }
 
+export type KitStatusLoadResult = {
+  statuses: Record<string, KitStatus>
+  error: { code?: string; message?: string } | null
+}
+
 export async function loadKitStatuses(
   supabase: SupabaseClient,
   brandIds: string[],
-): Promise<Record<string, KitStatus>> {
-  if (brandIds.length === 0) return {}
-  const { data } = await supabase
+  requestId?: string,
+): Promise<KitStatusLoadResult> {
+  if (brandIds.length === 0) return { statuses: {}, error: null }
+  const { data, error } = await supabase
     .from('brand_kits')
     .select('brand_id, status')
     .in('brand_id', brandIds)
+
+  if (error) {
+    console.error('[brand-data] loadKitStatuses failed', {
+      requestId,
+      code: error.code,
+      message: error.message,
+    })
+    return { statuses: {}, error: { code: error.code, message: error.message } }
+  }
+
   const statuses: Record<string, KitStatus> = {}
   for (const row of data ?? []) {
     statuses[row.brand_id] = row.status as KitStatus
   }
-  return statuses
+  return { statuses, error: null }
+}
+
+export function mapSupabaseBrandsError(error: {
+  code?: string
+  message?: string
+}): { status: number; code: string; message: string } {
+  const code = error.code ?? ''
+  const message = error.message ?? ''
+
+  if (code === '42P01' || /relation.*does not exist/i.test(message)) {
+    return {
+      status: 503,
+      code: 'SCHEMA_ERROR',
+      message:
+        'Brands table is missing. Run Supabase migrations (supabase db push) on your project.',
+    }
+  }
+  if (code === '42501' || /permission denied/i.test(message)) {
+    return {
+      status: 403,
+      code: 'FORBIDDEN',
+      message: 'Not allowed to access brands for this account.',
+    }
+  }
+  return {
+    status: 500,
+    code: 'UNKNOWN',
+    message: 'Failed to load brands',
+  }
 }
 
 export async function loadOwnedBrandRow(
@@ -185,7 +230,7 @@ export async function loadOwnedBrandFromSession(
   const row = await loadOwnedBrandRow(supabase, brandId, user.id)
   if (!row) return { reason: 'not_found' }
 
-  const statuses = await loadKitStatuses(supabase, [brandId])
+  const { statuses } = await loadKitStatuses(supabase, [brandId])
   return {
     brand: toBrand(row, statuses[brandId] ?? 'not_started'),
     userId: user.id,

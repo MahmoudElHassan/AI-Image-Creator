@@ -1,7 +1,7 @@
 'use client'
 
 import { useState } from 'react'
-import { apiRequest } from '@/lib/api'
+import { apiRequest, ApiError } from '@/lib/api'
 import { Brand } from '@/types'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -19,9 +19,15 @@ interface CreateBrandModalProps {
   open: boolean
   onOpenChange: (open: boolean) => void
   onBrandCreated: (brand: Brand) => void
+  onDuplicateName?: () => void
 }
 
-export function CreateBrandModal({ open, onOpenChange, onBrandCreated }: CreateBrandModalProps) {
+export function CreateBrandModal({
+  open,
+  onOpenChange,
+  onBrandCreated,
+  onDuplicateName,
+}: CreateBrandModalProps) {
   const [name, setName] = useState('')
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -39,7 +45,12 @@ export function CreateBrandModal({ open, onOpenChange, onBrandCreated }: CreateB
       setName('')
       onOpenChange(false)
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to create brand')
+      if (err instanceof ApiError && err.code === 'DUPLICATE_BRAND_NAME') {
+        setError('A brand with this name already exists. Check your brands list.')
+        onDuplicateName?.()
+      } else {
+        setError(err instanceof Error ? err.message : 'Failed to create brand')
+      }
     } finally {
       setLoading(false)
     }

@@ -27,7 +27,7 @@ export function AppShell({ children }: { children: ReactNode }) {
   const pathname = usePathname()
   const router = useRouter()
   const currentBrandId = typeof params.brandId === 'string' ? params.brandId : undefined
-  const { brands, accents, addBrand } = useBrands()
+  const { brands, accents, addBrand, refetch } = useBrands()
   const { profile } = useProfile()
   const [createOpen, setCreateOpen] = useState(false)
   const [navOpen, setNavOpen] = useState(false)
@@ -106,6 +106,7 @@ export function AppShell({ children }: { children: ReactNode }) {
         open={createOpen}
         onOpenChange={setCreateOpen}
         onBrandCreated={handleBrandCreated}
+        onDuplicateName={() => void refetch()}
       />
     </div>
   )

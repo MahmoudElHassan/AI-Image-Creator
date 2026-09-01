@@ -1,11 +1,21 @@
-import { createClient, type SupabaseClient, type User } from '@supabase/supabase-js'
+import { createClient as createSupabaseJsClient, type SupabaseClient, type User } from '@supabase/supabase-js'
 import { NextRequest, NextResponse } from 'next/server'
 import { getBackendOrigin, backendUrl } from '@/lib/server-api-url'
+import { createClient as createServerSupabaseClient } from '@/lib/supabase/server'
 import { getSupabasePublicEnv } from '@/lib/supabase/env'
 
-export function jsonError(status: number, code: string, message: string) {
+export function jsonError(
+  status: number,
+  code: string,
+  message: string,
+  logContext?: Record<string, unknown>,
+) {
+  const request_id = crypto.randomUUID()
+  if (logContext) {
+    console.error('[api-route]', { request_id, code, status, ...logContext })
+  }
   return NextResponse.json(
-    { error: { code, message, request_id: crypto.randomUUID() } },
+    { error: { code, message, request_id } },
     { status },
   )
 }
@@ -24,6 +34,27 @@ export function shouldUseNativeApi(): boolean {
   return Boolean(process.env.VERCEL) && isLoopbackBackend()
 }
 
+function bearerToken(request: NextRequest): string | null {
+  const header = request.headers.get('authorization')
+  if (!header?.startsWith('Bearer ')) return null
+  const token = header.slice(7).trim()
+  return token || null
+}
+
+function createBearerSupabase(token: string): SupabaseClient | null {
+  const env = getSupabasePublicEnv()
+  if (!env) return null
+  return createSupabaseJsClient(env.url, env.key, {
+    global: { headers: { Authorization: `Bearer ${token}` } },
+    auth: { persistSession: false, autoRefreshToken: false },
+  })
+}
+
+/**
+ * Authenticated Supabase for App Router API routes.
+ * Prefers the cookie-aware SSR client (same session as server components + RLS).
+ * Falls back to Authorization bearer when cookies are absent.
+ */
 export async function getAuthedSupabase(
   request: NextRequest,
 ): Promise<{ supabase: SupabaseClient; user: User } | { response: NextResponse }> {
@@ -38,23 +69,41 @@ export async function getAuthedSupabase(
     }
   }
 
-  const header = request.headers.get('authorization')
-  const token = header?.startsWith('Bearer ') ? header.slice(7).trim() : ''
-  if (!token) {
-    return {
-      response: jsonError(401, 'AUTHENTICATION_REQUIRED', 'Missing authentication credentials'),
+  const cookieClient = await createServerSupabaseClient()
+  const cookieAuth = await cookieClient.auth.getUser()
+  if (cookieAuth.data.user && !cookieAuth.error) {
+    return { supabase: cookieClient, user: cookieAuth.data.user }
+  }
+
+  const token = bearerToken(request)
+  if (token) {
+    const bearerClient = createBearerSupabase(token)
+    if (!bearerClient) {
+      return {
+        response: jsonError(
+          503,
+          'CONFIG_ERROR',
+          'Supabase public env is missing or invalid.',
+        ),
+      }
+    }
+    const bearerAuth = await bearerClient.auth.getUser(token)
+    if (bearerAuth.data.user && !bearerAuth.error) {
+      return { supabase: bearerClient, user: bearerAuth.data.user }
     }
   }
 
-  const supabase = createClient(env.url, env.key, {
-    global: { headers: { Authorization: `Bearer ${token}` } },
-    auth: { persistSession: false, autoRefreshToken: false },
-  })
-  const { data, error } = await supabase.auth.getUser(token)
-  if (error || !data.user) {
-    return { response: jsonError(401, 'INVALID_TOKEN', 'Invalid or expired token') }
+  return {
+    response: jsonError(
+      401,
+      'AUTHENTICATION_REQUIRED',
+      'Missing or invalid authentication credentials',
+      {
+        cookieAuthError: cookieAuth.error?.message,
+        hadBearer: Boolean(token),
+      },
+    ),
   }
-  return { supabase, user: data.user }
 }
 
 export async function proxyToBackend(
@@ -104,6 +153,7 @@ export async function proxyToBackend(
       isTimeout
         ? 'The request took too long to complete. Please try again.'
         : 'Could not reach the API service.',
+      { backendPath, err: err instanceof Error ? err.message : String(err) },
     )
   }
 }
